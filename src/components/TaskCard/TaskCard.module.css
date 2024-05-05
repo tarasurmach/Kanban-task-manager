@@ -1,0 +1,6 @@
+.taskCard {
+    height: 50px;
+    display: flex;
+    flex-direction: column;
+
+}

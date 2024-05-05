@@ -1,0 +1,8 @@
+.column {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 24%;
+}
+.over {
+    background-color: #A47015;
+}

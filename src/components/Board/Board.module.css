@@ -1,0 +1,8 @@
+.boardContainer {
+    display: flex;
+    gap: 0.5rem;
+    max-width: 100%;
+    flex-wrap: wrap;
+    margin: 1rem;
+
+}
