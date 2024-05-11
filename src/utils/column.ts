@@ -16,12 +16,12 @@ export const initColumns:IColumn[] = [
 ];
 
 export const initTasks:ITask[] = [
-    {id:11, title:"First", status:"todo", updated_at:new Date().toDateString(), columnId:"stodo"},
-    {id:12, title:"Todo Second", updated_at: new Date().toDateString(), status: "todo", columnId:"stodo"},
-    {id:21, title: "Progress First", status: "progress", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog" },
-    {id:22, title: "Progress Second", status: "progress",  updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog"},
-    {id:31, title: "Done First", status: "done", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sdone" },
-    {id:32, title: "Done Second", status: "done",  updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sdone"}
+    {id:'11', title:"First", status:"todo", updated_at:new Date().toDateString(), columnId:"stodo"},
+    {id:'12', title:"Todo Second", updated_at: new Date().toDateString(), status: "todo", columnId:"stodo"},
+    {id:'21', title: "Progress First", status: "progress", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog" },
+    {id:'22', title: "Progress Second", status: "progress",  updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog"},
+    {id:'31', title: "Done First", status: "done", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sdone" },
+    {id:'32', title: "Done Second", status: "done",  updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sdone"}
 
 ];
 
@@ -32,3 +32,8 @@ export const groupTasks = (tasks:ITask[], columns:IColumn[]):ColumnTasksMap => {
      ...accum, [task.columnId] : accum[task.columnId].concat(task)
     }), columns.reduce((prev, curr) => ({...prev, [curr.id]:[]}), {}) as Record<string, ITask[]>)
 }
+export type SelectedItems = {
+    columnId:string,
+    tasks:string[]
+}
+export const initSelected:SelectedItems = {columnId:"", tasks:[]}

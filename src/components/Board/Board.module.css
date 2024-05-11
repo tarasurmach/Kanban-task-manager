@@ -4,5 +4,20 @@
     max-width: 100%;
     flex-wrap: wrap;
     margin: 1rem;
+    background-color: #121212;
+
+
 
 }
+.board {
+    margin: 1rem auto;
+    display: flex;
+    gap: 1rem;
+    max-width: 100%;
+    flex-wrap: wrap;
+    padding-left: 0.5rem;
+
+    background-color: #121212;
+
+}
+

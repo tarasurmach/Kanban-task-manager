@@ -1,6 +1,44 @@
 .taskCard {
-    height: 50px;
+    height: 80px;
     display: flex;
     flex-direction: column;
+    border-radius: 6px;
+    background-color: black;
+    margin-bottom: 0.5rem;
+    padding-left: .625rem;
 
+}
+.taskCard > p {
+    width: 100%;
+    text-align: center;
+}
+.dragging {
+    border: 1px dashed red;
+    opacity: 0.5;
+}
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.row > span {
+    cursor: pointer;
+}
+.row > svg {
+    cursor: grab;
+}
+.arrows {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.arrows > svg {
+    cursor: pointer;
+}
+.arrows > svg:hover {
+    opacity: 0.5;
+    transition-duration: 0.4s;
+}
+.selected {
+    background-color: #888888;
 }

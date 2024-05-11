@@ -1,8 +1,27 @@
 .column {
     display: flex;
     flex-direction: column;
+    border-radius: 12px;
     flex: 0 0 24%;
+}
+.column > p {
+    background-color: #1d1d1d;
+    border-radius: 6px;
+    padding: 0.2rem;
+    cursor: grab;
 }
 .over {
     background-color: #A47015;
+}
+
+.placeholder {
+    border: 1px solid green;
+    opacity: 0.5;
+}
+.taskContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 80px;
+
 }
