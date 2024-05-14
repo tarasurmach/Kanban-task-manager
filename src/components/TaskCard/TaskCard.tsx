@@ -2,36 +2,24 @@ import styles from "./TaskCard.module.css"
 import {ITask} from "../../utils/task.ts";
 import {Draggable} from "@hello-pangea/dnd";
 import {useSortable} from "@dnd-kit/sortable";
-import {useLayoutEffect, useState} from "react";
+import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {CSS} from "@dnd-kit/utilities";
 import classNames from "classnames";
 import {DragHandleIcon, TriangleDownIcon, TriangleUpIcon} from "@chakra-ui/icons";
 import {Direction} from "../Board/Board.tsx";
+import {MoveTasks} from "../../utils/column.ts";
 
 
-/*
-const TaskCard = ({task, index}:{task:ITask, index:number}) => {
-    return (
-        <Draggable draggableId={task.id.toString()} index={index}  >
-            {(provided) => (
-                <div className={styles.taskCard} ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                    <p>{task.title}</p>
-                </div>
-            )}
-        </Draggable>
-    );
-};
 
-export default TaskCard;*/
 
 type Props = {
     task:ITask,
     isTaskSelected:boolean,
     toggleTaskSelection:()=>void,
-    onSwap:(id:string, dir:Direction) => () =>void;
+    moveTasks:MoveTasks;
 
 }
-const TaskCard = ({task, isTaskSelected, toggleTaskSelection, onSwap}:Props) => {
+const TaskCard = ({task, isTaskSelected, toggleTaskSelection, moveTasks}:Props) => {
     const [editMode, setEditMode] = useState<boolean>(false);
     const {setNodeRef, attributes, listeners, transition, transform, isDragging, rect, node} = useSortable({
         id:task.id,
@@ -39,21 +27,27 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, onSwap}:Props) => 
             type:"task",
             task
         },
-        disabled:editMode
-    });
-    const [clientWidth, setClientWidth] = useState<number>(node.current?.clientWidth);
+        disabled:editMode,
 
+    });
+    const elementRef = useRef<HTMLDivElement>();
+    const [clientWidth, setClientWidth] = useState<number>();
+
+    const cbRef = (node:HTMLDivElement) => {
+        setNodeRef(node);
+        elementRef.current = node;
+    }
     useLayoutEffect(() => {
-        function handleResize() {
-            setClientWidth(node.current?.clientWidth)
-        }
         window.addEventListener("resize", handleResize)
         return () => {
-            window.removeEventListener("resize", handleResize)
+            window.removeEventListener("resize", handleResize);
+
         }
 
-    }, [])
-    console.log(clientWidth)
+    }, []);
+    useEffect(() => {
+        handleResize()
+    }, []);
     const style = {
         transition,
         transform:CSS.Transform.toString(transform)
@@ -65,22 +59,25 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, onSwap}:Props) => 
             </div>
         )
     }
-    const showArrows = clientWidth ? clientWidth > 200 : true;
+    const showArrows =  clientWidth && (clientWidth > 200);
     return (
-        <div  ref={setNodeRef} {...listeners} {...attributes} className={classNames(styles.taskCard, {[styles.selected]:isTaskSelected})} style={style} onClick={toggleTaskSelection}>
+        <div  ref={cbRef} {...listeners} {...attributes} className={classNames(styles.taskCard, {[styles.selected]:isTaskSelected})} style={style} onClick={toggleTaskSelection}>
             <div className={styles.row}>
                 <p>{task.title}</p>
 
                 {showArrows && <span className={styles.arrows}>
-                    <TriangleDownIcon onClick={onSwap(task.id, "left")}  style={{rotate:"90deg"}}/>
-                    <TriangleUpIcon onClick={onSwap(task.id, "up")}  />
-                    <TriangleDownIcon onClick={onSwap(task.id, "down")}/>
-                    <TriangleUpIcon onClick={onSwap(task.id, "right")} style={{rotate:"90deg"}}/>
+                    <TriangleDownIcon onClick={moveTasks(task.id, "left")}  style={{rotate:"90deg"}}/>
+                    <TriangleUpIcon onClick={moveTasks(task.id, "up")}  />
+                    <TriangleDownIcon onClick={moveTasks(task.id, "down")}/>
+                    <TriangleUpIcon onClick={moveTasks(task.id, "right")} style={{rotate:"90deg"}}/>
                 </span>}
-                <DragHandleIcon ></DragHandleIcon>
+                <DragHandleIcon className={classNames({[styles.grabbing]:isDragging})}></DragHandleIcon>
             </div>
         </div>
     );
+    function handleResize() {
+        setClientWidth(elementRef.current?.clientWidth)
+    }
 };
 export const TaskView = ({task}:{task:ITask}) => {
     return (<div   className={classNames(styles.taskCard)}  >

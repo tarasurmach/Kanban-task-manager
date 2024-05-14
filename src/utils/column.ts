@@ -1,4 +1,7 @@
 import {ITask} from "./task.ts";
+import {Direction} from "../components/Board/Board.tsx";
+import {Dispatch, SetStateAction} from "react";
+import {arrayMove, arraySwap} from "@dnd-kit/sortable";
 
 export interface IColumn {
     id:string,
@@ -25,7 +28,68 @@ export const initTasks:ITask[] = [
 
 ];
 
+export const ROW_SIZE = 3;
+export type SetState<T> = Dispatch<SetStateAction<T>>;
+export type MoveTasks =  (id:string, dir:Direction) => () => void;
+export const moveTasks = (setTasks:SetState<ColumnTasksMap>, columns:IColumn[]) => (id:string, dir:Direction, )=> () => {
+
+    setTasks(prev => {
+        const tasksMap = Object.assign({}, prev);
+        const [index, column] = findTask(tasksMap, id);
+        const task = tasksMap[column][index];
+        const columnIndex = columns.findIndex(col => col.id === task.columnId);
+        if(dir=== "up" || dir==="down") {
+            const destIdx = dir === "up" ? index - 1 : index + 1;
+            if(dir === "up") {
+                if(index === 0) {
+                    const destColumnIdx = columnIndex - ROW_SIZE;
+                    const destColumn = columns[destColumnIdx];
+                    if(destColumnIdx < 0) return tasksMap;
+                    const [removed] = tasksMap[column].splice(index, 1);
+                    removed.columnId = destColumn.id
+                    tasksMap[destColumn.id].push(removed);
+                }else {
+                    tasksMap[column] = arraySwap(tasksMap[column], index, destIdx);
+                }
+
+            }else  {
+                if(index === tasksMap[column].length - 1) {
+                    const destColumnIdx = columnIndex + ROW_SIZE;
+                    if(destColumnIdx >= columns.length) return tasksMap;
+                    const destColumn = columns[destColumnIdx];
+                    const [removed] = tasksMap[column].splice(index, 1);
+                    removed.columnId = destColumn.id
+                    tasksMap[destColumn.id].unshift(removed)
+                }else {
+                    tasksMap[column] = arraySwap(tasksMap[column], index, destIdx)
+                }
+            }
+
+        }else{
+            if(dir === "left" && columnIndex === 0 || (dir==="right" && columnIndex === (columns.length-1))) return;
+            const destIdx = dir === "left" ? columnIndex - 1 : columnIndex + 1;
+            const destColumn = columns[destIdx];
+            const [removed] = tasksMap[column].splice(index, 1);
+            removed.columnId = destColumn.id;
+            tasksMap[destColumn.id].splice(index, 0, removed);
+            return tasksMap;
+        }
+        return tasksMap
+    });
+}
 export type ColumnTasksMap = Record<string, ITask[]>
+export const findTask = (map:ColumnTasksMap, id:string):[number, string] => {
+   //console.log({map, id})
+    let result ;
+    for (const mapKey in map) {
+        const index = map[mapKey].findIndex(t => t.id === id);
+        if(index > -1) {
+            result = [index, mapKey];
+            break;
+        }
+    }
+    return result as [number, string];
+}
 
 export const groupTasks = (tasks:ITask[], columns:IColumn[]):ColumnTasksMap => {
     return tasks.reduce((accum, task) => ({

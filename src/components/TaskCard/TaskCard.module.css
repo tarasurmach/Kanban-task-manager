@@ -27,6 +27,9 @@
 .row > svg {
     cursor: grab;
 }
+.grabbing {
+    cursor: grabbing;
+}
 .arrows {
     display: flex;
     align-items: center;

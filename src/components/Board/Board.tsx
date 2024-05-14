@@ -1,11 +1,11 @@
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {
-    ColumnTasksMap,
+    ColumnTasksMap, findTask,
     groupTasks,
     IColumn,
     initColumns,
     initSelected,
-    initTasks,
+    initTasks, moveTasks,
     SelectedItems
 } from "../../utils/column.ts";
 import styles from "./Board.module.css"
@@ -21,10 +21,11 @@ import {
     useSensor,
     useSensors
 } from "@dnd-kit/core";
-import {arrayMove, SortableContext} from "@dnd-kit/sortable";
+import {arrayMove, horizontalListSortingStrategy, SortableContext} from "@dnd-kit/sortable";
 import {ITask} from "../../utils/task.ts";
 import {createPortal} from "react-dom";
 import TaskCard from "../TaskCard/TaskCard.tsx";
+import {useLatest} from "../../hooks/useLatest.ts";
 
 
 
@@ -78,13 +79,16 @@ import TaskCard from "../TaskCard/TaskCard.tsx";
 export type Direction = "up"|"down"|"left"|"right";
 const Board = () => {
     const [columns, setColumns] = useState<IColumn[]>(initColumns);
-    const [tasks, setTasks] = useState<ITask[]>(initTasks)
+    const [tasks, setTasks] = useState<ColumnTasksMap>(groupTasks(initTasks, initColumns))
     const colIds = useMemo(() => columns.map(col => col.id), [columns])
     const [activeTask, setActiveTask] = useState<ITask|null>(null);
     const [activeColumn, setActiveColumn] = useState<IColumn|null>(null);
     const [selectedItems, setSelectedItems] = useState<SelectedItems>(initSelected);
     const [selectionMode, setSelectionMode] = useState<boolean>(false);
     const isActiveDrag = !!(activeTask || activeColumn);
+    const latestOverId = useRef<number|null>(null);
+    const recentlyMovedToNewColumn = useRef(false);
+
     const onKeyDown = (e:KeyboardEvent) => {
         if(!e.ctrlKey) return;
         setSelectionMode(true);
@@ -123,7 +127,7 @@ const Board = () => {
         }
     }, []);
     useEffect(() => {
-        console.log(tasks);
+        //console.log(tasks);
         //console.log(activeColumn)
     }, [tasks]);
 
@@ -138,18 +142,18 @@ const Board = () => {
             if(selectionMode) {
                 console.log("click")
         }}}>
-            <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} >
-                <SortableContext items={colIds}>
+            <DndContext sensors={sensors} onDragStart={onDragStart}  onDragEnd={onDragEnd} onDragOver={onDragOver} onDragCancel={onDragCancel}>
+                <SortableContext items={colIds} >
                     {
                         columns.map(col => <Column
                             key={col.id}
                             column={col}
-                            tasks={tasks.filter(task => task.columnId === col.id)}
+                            tasks={tasks[col.id]}
                             selectionMode={selectionMode}
                             setSelectionMode={setSelectionMode}
                             isTaskSelected={isTaskSelected}
                             toggleTaskSelection={toggleTaskSelection}
-                            setTasks={setTasks}
+                            moveTasks={moveTasks(setTasks, columns)}
                             isActiveDrag={isActiveDrag}
                             columns={columns}
                         />)
@@ -160,17 +164,18 @@ const Board = () => {
                         {activeColumn && (
                             <Column
                                 column={activeColumn}
-                                tasks={tasks.filter(task => task.columnId === activeColumn.id)}
+                                tasks={tasks[activeColumn.id]}
                                 selectionMode={selectionMode}
                                 setSelectionMode={setSelectionMode}
                                 isTaskSelected={isTaskSelected}
                                 toggleTaskSelection={toggleTaskSelection}
+                                moveTasks={moveTasks(setTasks, columns)}
                             />
                         )}
                         {activeTask && (
                             <TaskCard
                                 task={activeTask}
-                                onSwap={()=>{}}
+                                moveTasks={()=>{}}
                             />
                         )}
                     </DragOverlay>,
@@ -188,7 +193,8 @@ const Board = () => {
             if(!isTaskSelected(e.active.id as string)) {
                 setSelectedItems(initSelected)
             }
-            setActiveTask(current.task)
+            setActiveTask(current.task);
+            //latestOverId.current = findTask(tasks, e.active.id as string)[0]
         }
     }
 
@@ -196,6 +202,8 @@ const Board = () => {
     function onDragEnd(e:DragEndEvent) {
         setActiveTask(null);
         setActiveColumn(null);
+        latestOverId.current = null;
+        recentlyMovedToNewColumn.current = false;
         const {over, active} = e;
         if(!over) return;
 
@@ -215,8 +223,15 @@ const Board = () => {
 
         })
     }
+    function onDragCancel() {
+        console.log("cancelling")
+        setActiveColumn(null);
+        latestOverId.current = null;
+        setActiveTask(null);
+    }
     //handle tasks movement
     function onDragOver(e:DragOverEvent) {
+
         const {active, over} = e;
         if(!over) return;
         const activeId = active.id;
@@ -225,63 +240,83 @@ const Board = () => {
         const isActiveATask = active.data.current?.type === "task";
         const isOverATask = over.data.current?.type === "task";
         if(!isActiveATask) return;
-        console.log(over.data.current?.type)
-        //handle scenario of dropping a task over a task
-
+        console.log("latest over index " + latestOverId.current)
         if(isOverATask) {
-            console.log("yes")
+
             setTasks(prev => {
-                //same column;
-                /*const activeTask = active.data.current?.task as ITask;
-                const overTask = over.data.current?.task as ITask;
-                prev = Object.assign({}, prev);
-                const sourceIndex = prev[activeTask.columnId].findIndex(task => task.id === activeId);
-                const destIndex = prev[overTask.columnId].findIndex(task => task.id === overId);
-
-                const [task] = prev[activeTask.columnId].splice(sourceIndex, 1);task.columnId = overTask.columnId;
-                console.log(activeTask.columnId);
-                console.log(task.columnId);
-                prev[overTask.columnId].splice(destIndex, 0, task)
-                return prev;*/
-                prev = prev.slice();
-                const sourceIndex = prev.findIndex(task => task.id === activeId);
-                const overIndex = prev.findIndex(task => task.id === overId);
-                if(prev[sourceIndex].columnId !== prev[overIndex].columnId) {
-                    prev[sourceIndex].columnId = prev[overIndex].columnId;
-                    return arrayMove(prev, sourceIndex, overIndex === 0 ? 0 : overIndex - 1)
+                const tasksMap = Object.assign({}, prev);
+                const [activeIdx, activeColumn] = findTask(tasksMap, activeId as string);
+                const activeTask = tasksMap[activeColumn][activeIdx];
+                const [overIdx, overColumn] = findTask(tasksMap, overId as string);
+                console.log("over is a task: " + "from " + activeIdx + "to " + overIdx)
+                const overTask = tasksMap[overColumn][overIdx];
+                if(overTask.columnId === activeTask.columnId) {
+                    tasksMap[overColumn] = arrayMove(tasksMap[overColumn], activeIdx, overIdx);
+                    return tasksMap
                 }
-                return arrayMove(prev, sourceIndex, overIndex)
+                latestOverId.current = overIdx
+                const [task] = tasksMap[activeColumn].splice(activeIdx, 1);
+                task.columnId = overColumn;
+                tasksMap[overColumn].splice(overIdx , 0, task);
+                console.log(tasksMap)
+                return tasksMap;
 
-                //}
-
-                //return prev;
             })
         }
+
         const isOverAColumn = over.data.current?.type === "column"
         if(isActiveATask && isOverAColumn) {
-            console.log("over is a column");
+            console.log("over is a column" + "last over idx: " + latestOverId.current);
             setTasks(prev => {
-                /*prev = Object.assign({}, prev);
-                const task = active.data.current?.task as ITask;
-                if(task.columnId !== overId) {
-                    console.log(task.columnId);
-                    const index = prev[task.columnId].findIndex(t => t.id === activeId)
-                    const [sourceTask] = prev[task.columnId].splice(index, 1)
-                    task.columnId = overId as string
-                    prev[overId].unshift(sourceTask)
+                const tasksMap = Object.assign({}, prev);
 
-                    return prev
-                }
-                prev[overId] =  prev[overId].map(task => task.id === activeId ? ({...task, columnId:overId.toString()}) : task);*/
-                prev = prev.slice();
+                //const task = e.active.data.current.task
+                //console.log(task);
+                //const task = tasksMap[column][index];
+                const [index, column] = findTask(tasksMap, activeId as string)
+                let task = tasksMap[column][index]
+                if (task.columnId === overId) return tasksMap;
+
+                //const index = tasksMap[task.columnId].findIndex(t => t.id === activeId)
+
+
+                task = tasksMap[task.columnId].splice(index, 1)[0]
+                task.columnId = overId as string;
+                tasksMap[overId].splice( latestOverId.current ?? 0, 0, task);
+                recentlyMovedToNewColumn.current = true;
+                return tasksMap
+            })
+                /*if(task.columnId !== overId) {
+
+                    console.log(task.columnId);
+                    //const index = tasksMap[task.columnId].findIndex(t => t.id === activeId)
+                    const [sourceTask] = tasksMap[task.columnId].splice(index, 1)
+                    task.columnId = overId as string
+                    tasksMap[overId].splice(latestOverId.current ?? 0, 0, task);
+                    return tasksMap;
+                }*/
+                console.log("last: " + latestOverId.current)
+                //tasksMap[overId] = arrayMove(tasksMap[overId], index, latestOverId.current ?? 0)
+                //return tasksMap
+                console.log("same column")
+
+
+                /*tasksMap[overId] =  tasksMap[overId].map(task => {
+                    console.log(task.id === activeId)
+                    return task.id === activeId ? ({...task, columnId:overId.toString()}) : task
+                });
+                return tasksMap*/
+                /*prev = prev.slice();
                 const taskIndex = prev.findIndex(task => task.id === activeId);
                 const task = prev[taskIndex];
                 task.columnId = overId as string;
                 return prev;
 
-            })
+            })*/
         }
     }
+
+
 };
 
 

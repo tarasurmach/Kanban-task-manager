@@ -3,6 +3,7 @@
     flex-direction: column;
     border-radius: 12px;
     flex: 0 0 24%;
+    min-height: 400px;
 }
 .column > p {
     background-color: #1d1d1d;
