@@ -12,6 +12,7 @@
     width: 100%;
     text-align: center;
 }
+
 .dragging {
     border: 1px dashed red;
     opacity: 0.5;
@@ -28,12 +29,12 @@
     cursor: grab;
 }
 .grabbing {
-    cursor: grabbing;
+    cursor: pointer;
 }
 .arrows {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.1rem;
 }
 .arrows > svg {
     cursor: pointer;

@@ -1,6 +1,6 @@
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
-    ColumnTasksMap, findTask,
+    ColumnTasksMap,
     groupTasks,
     IColumn,
     initColumns,
@@ -10,85 +10,44 @@ import {
 } from "../../utils/column.ts";
 import styles from "./Board.module.css"
 import Column from "../Column/Column.tsx";
-import {DragDropContext, Droppable, DropResult} from "@hello-pangea/dnd";
-import {Flex} from "@chakra-ui/react";
+
 import {
+    closestCenter,
+    CollisionDetection,
     DndContext,
     DragEndEvent, DragOverEvent,
     DragOverlay,
-    DragStartEvent,
-    PointerSensor,
+    DragStartEvent, getFirstCollision,
+    PointerSensor, pointerWithin, rectIntersection, UniqueIdentifier,
     useSensor,
     useSensors
 } from "@dnd-kit/core";
-import {arrayMove, horizontalListSortingStrategy, SortableContext} from "@dnd-kit/sortable";
-import {ITask} from "../../utils/task.ts";
+import {arrayMove,  SortableContext} from "@dnd-kit/sortable";
+
 import {createPortal} from "react-dom";
-import TaskCard from "../TaskCard/TaskCard.tsx";
-import {useLatest} from "../../hooks/useLatest.ts";
+import TaskCard, {TaskView} from "../TaskCard/TaskCard.tsx";
+
+import {Placeholder} from "../Column/Placeholder.tsx";
 
 
-
-/*const Board = () => {
-    const [columns, setColumns] = useState<IColumn[]>(initColumns);
-    const [tasks, setTasks] = useState<ColumnTasksMap>(groupTasks(initTasks, initColumns))
-    const handleDragEnd = (e:DropResult) => {
-        const {destination, source, type, draggableId} = e;
-        if(!destination) return;
-        if(destination.index === source.index && destination.droppableId === source.droppableId) return;
-        let newColumns= columns.slice();
-        if(type === "column") {
-            const [sourceCol] = newColumns.splice(source.index, 1)
-            newColumns.splice(destination.index, 0, sourceCol)
-            setColumns(newColumns);
-        }else if("task") {
-            const newTasks:ColumnTasksMap = Object.assign({}, tasks);
-            const [sourceTask] = newTasks[source.droppableId].splice(source.index, 1);
-            sourceTask.columnId = destination.droppableId;
-            newTasks[destination.droppableId].splice(destination.index, 0, sourceTask);
-            setTasks(newTasks)
-
-
-        }
-    }
-    useEffect(() => {
-        console.log(tasks)
-    }, [tasks]);
-    return (
-        <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="all-columns" direction="horizontal" type={"column"}>
-                {(provided) => (
-
-                        <Flex ref={provided.innerRef} {...provided.droppableProps} className={styles.boardContainer}>
-                            {
-                                columns.map((column, index) => (
-                                <Column column={column} columnIndex={index} key={column.id} tasks={tasks[column.id]}/>
-                            ))
-                            }
-                            {provided.placeholder}
-                        </Flex>
-
-
-
-                )}
-            </Droppable>
-        </DragDropContext>
-    );
-};*/
 
 export type Direction = "up"|"down"|"left"|"right";
 const Board = () => {
     const [columns, setColumns] = useState<IColumn[]>(initColumns);
     const [tasks, setTasks] = useState<ColumnTasksMap>(groupTasks(initTasks, initColumns))
     const colIds = useMemo(() => columns.map(col => col.id), [columns])
-    const [activeTask, setActiveTask] = useState<ITask|null>(null);
-    const [activeColumn, setActiveColumn] = useState<IColumn|null>(null);
     const [selectedItems, setSelectedItems] = useState<SelectedItems>(initSelected);
     const [selectionMode, setSelectionMode] = useState<boolean>(false);
-    const isActiveDrag = !!(activeTask || activeColumn);
-    const latestOverId = useRef<number|null>(null);
+    const [clonedItems, setClonedItems] = useState<ColumnTasksMap|null>(null)
+    const [boardWidth, setBoardWidth] = useState<number>();
+    const elementRef = useRef<HTMLDivElement>();
+    const latestOverId = useRef<UniqueIdentifier|null>(null);
     const recentlyMovedToNewColumn = useRef(false);
-
+    const [activeId, setActiveId] = useState<UniqueIdentifier|null>(null);
+    const isActiveDrag = activeId !== null;
+    const cbRef = (node:HTMLDivElement) => {
+        elementRef.current = node;
+    }
     const onKeyDown = (e:KeyboardEvent) => {
         if(!e.ctrlKey) return;
         setSelectionMode(true);
@@ -127,22 +86,68 @@ const Board = () => {
         }
     }, []);
     useEffect(() => {
-        //console.log(tasks);
+        console.log(tasks);
+        console.log(isActiveDrag);
+        console.log(activeId)
         //console.log(activeColumn)
     }, [tasks]);
+    useLayoutEffect(() => {
+        window.addEventListener("resize", handleResize);
+
+        return () => {
+            window.removeEventListener("resize", handleResize);
+        }
+    }, []);
+    const handleResize = () => {
+        console.log(elementRef.current?.clientWidth)
+        setBoardWidth(elementRef.current?.clientWidth)
+    };
 
     const sensors = useSensors(useSensor(PointerSensor, {
         activationConstraint: {
             distance:10
         }
     }))
+    const customCollisionDetection:CollisionDetection = useCallback((args) => {
+        if(activeId && activeId in tasks) { //meaning draggable is column
+            return closestCenter({
+                ...args, droppableContainers:args.droppableContainers.filter(cont => cont.id in tasks) // we're dragging container, thus we only need to rearrange containers
+            })
+        }
+        const pointerIntersections = pointerWithin(args);
+        const intersections = pointerIntersections.length > 0 ? pointerIntersections : rectIntersection(args);
+
+        let overId = getFirstCollision(intersections, "id") // find closest droppable
+
+        //handle scenario where we have first collision
+        if(overId !== null) {
+            if(overId in tasks) {//droppable is column
+                const columnTasks = tasks[overId];
+                if(columnTasks.length > 0) { //column not empty
+                    overId = closestCenter({
+                        ...args, droppableContainers:args.droppableContainers.filter(droppable => droppable.id !== overId && columnTasks.some(t => t.id === droppable.id))
+                    })[0]?.id; // closest index to insert task in sortable context. Useful for inserting draggable into newColumn to calculate new position appropriately
+                }
+
+            }
+            latestOverId.current = overId;
+            return [{id:overId}]
+        }
+        if(recentlyMovedToNewColumn.current) {
+            latestOverId.current = activeId;
+        }
+        return latestOverId.current ? [{id:latestOverId.current}] : [];
+
+
+    }, [activeId, tasks]);
+    const showArrows = boardWidth ? boardWidth > 900 : true;
 
     return (
-        <div className={styles.board} onClick={() => {
+        <div className={styles.board} ref={cbRef} onClick={() => {
             if(selectionMode) {
                 console.log("click")
         }}}>
-            <DndContext sensors={sensors} onDragStart={onDragStart}  onDragEnd={onDragEnd} onDragOver={onDragOver} onDragCancel={onDragCancel}>
+            <DndContext sensors={sensors} onDragStart={onDragStart}  onDragEnd={onDragEnd} onDragOver={onDragOver} onDragCancel={onDragCancel} collisionDetection={customCollisionDetection}>
                 <SortableContext items={colIds} >
                     {
                         columns.map(col => <Column
@@ -156,28 +161,28 @@ const Board = () => {
                             moveTasks={moveTasks(setTasks, columns)}
                             isActiveDrag={isActiveDrag}
                             columns={columns}
+                            showArrows={showArrows}
                         />)
                     }
+                    <Placeholder addNewColumn={addNewColumn}/>
                 </SortableContext>
                 {createPortal(
                     <DragOverlay>
-                        {activeColumn && (
+
+                        {columns.some(col => col.id === activeId) ? (
                             <Column
-                                column={activeColumn}
-                                tasks={tasks[activeColumn.id]}
+                                column={columns.find(col => col.id === activeId)}
+                                tasks={tasks[activeId as string]}
                                 selectionMode={selectionMode}
                                 setSelectionMode={setSelectionMode}
                                 isTaskSelected={isTaskSelected}
                                 toggleTaskSelection={toggleTaskSelection}
                                 moveTasks={moveTasks(setTasks, columns)}
                             />
-                        )}
-                        {activeTask && (
-                            <TaskCard
-                                task={activeTask}
-                                moveTasks={()=>{}}
-                            />
-                        )}
+                        ) : (<TaskView
+                            task={findItem(activeId as string) ?? {}}
+                            selectedLength={selectedItems.tasks.length}
+                        />) }
                     </DragOverlay>,
                     document.body
                 )}
@@ -185,134 +190,182 @@ const Board = () => {
         </div>
     );
     function onDragStart(e:DragStartEvent) {
-        const {data:{current}} = e.active;
-        if(!current?.type) return;
-        if(current.type === "column") {
-            setActiveColumn(current.column);
-        }else if(current.type === "task") {
-            if(!isTaskSelected(e.active.id as string)) {
-                setSelectedItems(initSelected)
-            }
-            setActiveTask(current.task);
-            //latestOverId.current = findTask(tasks, e.active.id as string)[0]
+        setActiveId(e.active.id);
+        if(!selectedItems.tasks.includes(e.active.id as string)) {
+            setSelectedItems(initSelected)
         }
+        setClonedItems(tasks);
     }
 
     //handle columns movement
     function onDragEnd(e:DragEndEvent) {
-        setActiveTask(null);
-        setActiveColumn(null);
-        latestOverId.current = null;
-        recentlyMovedToNewColumn.current = false;
-        const {over, active} = e;
-        if(!over) return;
-
-        const activeColumnId = active.id;
-        const overColumnId = over.id;
-        if(activeColumnId === overColumnId) return;
-        if(active.data.current?.type !== "column") return;
-        console.log("setting")
-        setColumns(prev => {
-            const copy = prev.slice();
-            const sourceIndex = copy.findIndex(col => col.id === activeColumnId);
-            const overIndex = copy.findIndex(col => col.id === overColumnId);
-            const [sourceCol] = copy.splice(sourceIndex, 1);
-            copy.splice(overIndex < 0 ? copy.length + overIndex : overIndex, 0, sourceCol);
-            console.log("to: " + overIndex + "  from: " + sourceIndex)
-            return copy;
-
-        })
-    }
-    function onDragCancel() {
-        console.log("cancelling")
-        setActiveColumn(null);
-        latestOverId.current = null;
-        setActiveTask(null);
-    }
-    //handle tasks movement
-    function onDragOver(e:DragOverEvent) {
-
-        const {active, over} = e;
-        if(!over) return;
-        const activeId = active.id;
-        const overId = over.id;
-        if(activeId === overId) return;
-        const isActiveATask = active.data.current?.type === "task";
-        const isOverATask = over.data.current?.type === "task";
-        if(!isActiveATask) return;
-        console.log("latest over index " + latestOverId.current)
-        if(isOverATask) {
-
-            setTasks(prev => {
-                const tasksMap = Object.assign({}, prev);
-                const [activeIdx, activeColumn] = findTask(tasksMap, activeId as string);
-                const activeTask = tasksMap[activeColumn][activeIdx];
-                const [overIdx, overColumn] = findTask(tasksMap, overId as string);
-                console.log("over is a task: " + "from " + activeIdx + "to " + overIdx)
-                const overTask = tasksMap[overColumn][overIdx];
-                if(overTask.columnId === activeTask.columnId) {
-                    tasksMap[overColumn] = arrayMove(tasksMap[overColumn], activeIdx, overIdx);
-                    return tasksMap
-                }
-                latestOverId.current = overIdx
-                const [task] = tasksMap[activeColumn].splice(activeIdx, 1);
-                task.columnId = overColumn;
-                tasksMap[overColumn].splice(overIdx , 0, task);
-                console.log(tasksMap)
-                return tasksMap;
-
+        const {active, over} =e;
+        //this handler serves specifically to reorder sortable items within single sortable context(either task or column)
+        if(active.id in tasks && over?.id) {
+            setColumns(prev => {
+                const activeIdx = prev.findIndex(col => col.id === active.id);
+                const overIdx = prev.findIndex(col => col.id === over.id)
+                return arrayMove(prev, activeIdx, overIdx)
             })
         }
-
-        const isOverAColumn = over.data.current?.type === "column"
-        if(isActiveATask && isOverAColumn) {
-            console.log("over is a column" + "last over idx: " + latestOverId.current);
+        const activeColumn = findColumn(active.id as string);
+        if(!activeColumn) {
+            setActiveId(null);
+            return;
+        }
+        const overId = over?.id;
+        if(!overId) {
+            setActiveId(null);
+            return;
+        }
+        console.log(over.id);
+        if(overId === "new") {
+            const newColId = `Column ${columns.length + 1}`;
+            setColumns(prev => ([...prev, {id:newColId, title:newColId.charAt(0).toUpperCase() + newColId.slice(1)}]));
             setTasks(prev => {
-                const tasksMap = Object.assign({}, prev);
+                const tasksMap = {...prev};
+                tasksMap[activeColumn] = tasksMap[activeColumn].slice();
+                const [task] = tasksMap[activeColumn].splice(tasksMap[activeColumn].findIndex(t => t.id === active.id), 1);
+                tasksMap[newColId] = [task]
+                return tasksMap;
+            });
+            setActiveId(null);
+            return;
+        }
+        const overColumn = findColumn(over.id as string);
+        console.log(overColumn)
+        if(!overColumn){
+            setActiveId(null);
+            return;
+        }
+        const activeIdx = tasks[activeColumn].findIndex(t => t.id === active.id);
+        const overIdx = tasks[overColumn].findIndex(t => t.id === over.id);
+        if(activeIdx === overIdx) {
+            console.log("same index");
+            if(selectedItems.tasks.length === 0) return;
+            setTasks(prev => {
+                prev = Object.assign({}, prev);
+                prev[overColumn] = prev[overColumn].slice();
+                const selectedTasks = clonedItems[selectedItems.columnId].filter(t => selectedItems.tasks.includes(t.id));
+                selectedTasks.forEach(t => {
+                    t.columnId = overColumn
+                })
+                prev[overColumn].splice(overIdx, 1, ...selectedTasks);
+                return prev;
+            });
+            setSelectedItems(initSelected)
+            return;
+        }
+        console.log("setting tasks onDragEnd from: " + activeIdx + " to: " + overIdx)
+        setTasks(prev => {
+            prev = Object.assign({} , prev);
+            if(selectedItems.tasks.length === 0) {
+                prev[overColumn] = arrayMove(prev[overColumn], activeIdx, overIdx)
+                return prev;
+            }
 
-                //const task = e.active.data.current.task
-                //console.log(task);
-                //const task = tasksMap[column][index];
-                const [index, column] = findTask(tasksMap, activeId as string)
-                let task = tasksMap[column][index]
-                if (task.columnId === overId) return tasksMap;
+        });
+        console.log("resetting active ID")
+        setActiveId(null);
 
-                //const index = tasksMap[task.columnId].findIndex(t => t.id === activeId)
+    }
+    function onDragCancel() {
+        if(clonedItems) {
+            setTasks(clonedItems)
+        }
+        setActiveId(null);
+        setClonedItems(null)
+    }
 
+    //handle tasks movement
+    function onDragOver(e:DragOverEvent) {
+        //this handler is used for dynamic rearranging of tasks between columns and proper placeholder rendering
+        const {active, over } = e;
+        const overId = over?.id as string;
 
-                task = tasksMap[task.columnId].splice(index, 1)[0]
-                task.columnId = overId as string;
-                tasksMap[overId].splice( latestOverId.current ?? 0, 0, task);
-                recentlyMovedToNewColumn.current = true;
-                return tasksMap
-            })
-                /*if(task.columnId !== overId) {
-
-                    console.log(task.columnId);
-                    //const index = tasksMap[task.columnId].findIndex(t => t.id === activeId)
-                    const [sourceTask] = tasksMap[task.columnId].splice(index, 1)
-                    task.columnId = overId as string
-                    tasksMap[overId].splice(latestOverId.current ?? 0, 0, task);
-                    return tasksMap;
-                }*/
-                console.log("last: " + latestOverId.current)
-                //tasksMap[overId] = arrayMove(tasksMap[overId], index, latestOverId.current ?? 0)
-                //return tasksMap
-                console.log("same column")
+        if(!overId ||  overId === "new" ) return;
+        console.log(overId)
+        if(active.id in tasks) return;
+        const activeColumn = findColumn(active.id as string)
+        const overColumn = findColumn(overId as string);
 
 
-                /*tasksMap[overId] =  tasksMap[overId].map(task => {
-                    console.log(task.id === activeId)
-                    return task.id === activeId ? ({...task, columnId:overId.toString()}) : task
-                });
-                return tasksMap*/
-                /*prev = prev.slice();
-                const taskIndex = prev.findIndex(task => task.id === activeId);
-                const task = prev[taskIndex];
-                task.columnId = overId as string;
+        if(!activeColumn || !overColumn) return;
+
+        if(activeColumn === overColumn) { //since rearranging within the same sortable context is handled in onDragEnd callback
+            console.log("same column");
+            /*if(selectedItems.tasks.length > 0) {
+                setTasks(prev => ({...prev, [activeColumn]:prev[activeColumn].filter(t => !selectedItems.tasks.includes(t.id))}))
+            }*/
+
+            return;
+        }
+        console.log("active column: " + activeColumn + " over column: " + overColumn);
+
+        setTasks(prev => {
+                const activeIndex = prev[activeColumn].findIndex(t => t.id === active.id);
+                const overIndex = prev[overColumn].findIndex(t => t.id === overId);
+                let newIndex:number;
+                if(overId in prev) { // means the droppable is column and it's empty
+                    console.log("hovering over column: " + overId);
+                    console.log(prev[overId].length)
+                    newIndex = prev[overId].length === 0 ? prev[overColumn].length + 1 : 0;
+                }else { // means the droppable is another task
+                    const isActiveBelowOverItem = over && active.rect.current.translated && active.rect.current.translated.top > over.rect.top + over.rect.height;
+                    const modifier = isActiveBelowOverItem ? 1 : 0; //meaning that if the dragged task is below over task, we shift it down by one
+                    newIndex = overIndex >= 0 ? overIndex + modifier : prev[overColumn].length + 1;
+                    console.log("hovering over: " + newIndex)
+                    recentlyMovedToNewColumn.current = true;
+                }
+                prev = {...prev}
+                prev[activeColumn] = prev[activeColumn].slice();
+                if(selectedItems.tasks.length > 0) {
+                    prev[activeColumn] = prev[activeColumn].filter(t => !selectedItems.tasks.includes(t.id) || t.id === active.id);
+                    console.log(prev[activeColumn])
+
+                }
+                const [task] = prev[activeColumn].splice(activeIndex, 1);
+
+                task.columnId = overColumn;
+                prev[overColumn] = prev[overColumn].slice();
+                prev[overColumn].splice(newIndex, 0, task);
+                console.log(`${activeColumn}-${activeIndex}`);
+                console.log(`${activeIndex}-`)
                 return prev;
 
-            })*/
+
+            })
+        /*}else {
+            const {tasks:selectedTasks, columnId:selectedColumnId} = selectedItems;
+            setTasks(prev => {
+                const tasksMap = Object.assign({}, prev);
+                tasksMap[activeColumn] = tasksMap[activeColumn].filter(t => !selectedTasks.some(task => task === t.id));
+
+            })
+        }*/
+
+
+    }
+    function addNewColumn() {
+        const newColId = `Column ${columns.length + 1}`;
+        setColumns(prev => ([...prev, {id:newColId, title:newColId.charAt(0).toUpperCase() + newColId.slice(1)}]));
+        setTasks(prev => ({...prev, [newColId]:[]}))
+    }
+    function findColumn(id:string) {
+        if(id in tasks) {
+            return id
+        }
+        for (const key in tasks) {
+            if(tasks[key].some(task => task.id === id)) {
+                return key;
+            }
+        }
+    }
+    function findItem(id:string) {
+        let task;
+        for (const key in tasks) {
+            task = tasks[key].find(t => t.id === id);
+            if(task) return task;
         }
     }
 

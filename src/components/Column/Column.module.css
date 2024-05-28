@@ -1,6 +1,6 @@
 .column {
     display: flex;
-    flex-direction: column;
+
     border-radius: 12px;
     flex: 0 0 24%;
     min-height: 400px;
@@ -16,13 +16,16 @@
 }
 
 .placeholder {
-    border: 1px solid green;
-    opacity: 0.5;
+
+    background-color: #1d1d1d;
+    border-bottom-left-radius: 12px;
+    border-bottom-right-radius: 12px;
 }
 .taskContainer {
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
     min-height: 80px;
+    height: 100%;
 
 }

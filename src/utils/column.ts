@@ -19,8 +19,9 @@ export const initColumns:IColumn[] = [
 ];
 
 export const initTasks:ITask[] = [
-    {id:'11', title:"First", status:"todo", updated_at:new Date().toDateString(), columnId:"stodo"},
+    {id:'11', title:"Todo First", status:"todo", updated_at:new Date().toDateString(), columnId:"stodo"},
     {id:'12', title:"Todo Second", updated_at: new Date().toDateString(), status: "todo", columnId:"stodo"},
+    {id:'13', title:"Todo Third", updated_at: new Date().toDateString(), status: "todo", columnId:"stodo"},
     {id:'21', title: "Progress First", status: "progress", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog" },
     {id:'22', title: "Progress Second", status: "progress",  updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sprog"},
     {id:'31', title: "Done First", status: "done", updated_at: new Date(2024, 3, new Date().getDate()-1).toDateString(), columnId:"sdone" },
@@ -100,4 +101,6 @@ export type SelectedItems = {
     columnId:string,
     tasks:string[]
 }
+
+
 export const initSelected:SelectedItems = {columnId:"", tasks:[]}

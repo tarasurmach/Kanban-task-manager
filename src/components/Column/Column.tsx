@@ -15,6 +15,7 @@ import {CSS} from "@dnd-kit/utilities";
 import {DragStartEvent} from "@dnd-kit/core";
 import {useAutoAnimate} from "@formkit/auto-animate/react";
 import {Direction} from "../Board/Board.tsx";
+import {Flex, HStack, Stack, Text} from "@chakra-ui/react";
 
 
 interface Props {
@@ -28,48 +29,31 @@ interface Props {
     setTasks:Dispatch<SetStateAction<ColumnTasksMap>>,
     isActiveDrag:boolean,
     columns:IColumn[],
-    moveTasks:MoveTasks
+    moveTasks:MoveTasks,
+    showArrows:boolean
+
 
 }
 
-/*
-const Column = ({column, columnIndex, tasks}:Props) => {
-
-    return (
-        <Draggable draggableId={column.id} index={columnIndex}>
-            {(provide) => (
-                <div className={styles.column} ref={provide.innerRef} {...provide.draggableProps}>
-                    <p {...provide.dragHandleProps}>{column.title}</p>
-                    <Droppable droppableId={column.id.toString()} type="task" direction={"vertical"}>
-                        {(provided, snapshot) => (
-                            <div ref={provided.innerRef} {...provided.droppableProps} className={classNames({[styles.over]:snapshot.isDraggingOver})}>
-                                {tasks && tasks.map((task, index) => <TaskCard key={task.id} task={task} index={index}/>)}
-                                {provided.placeholder}
-                            </div>
-                        )}
-                    </Droppable>
-                </div>
-            )}
-        </Draggable>
-    );
-};
-
-export default Column;*/
 
 
 
 
-const Column = ({column, tasks, columns, isTaskSelected, selectionMode, toggleTaskSelection, setTasks, isActiveDrag, moveTasks}:Props) => {
+const Column = ({column, tasks,showArrows, columns, isTaskSelected, selectionMode, toggleTaskSelection, setTasks, isActiveDrag, moveTasks}:Props) => {
+    //console.log(tasks)
     const [editMode, setEditMode] = useState<boolean>(false);
     const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
     const [container, enableAnimations] = useAutoAnimate({easing:"ease-in"});
+
     useEffect(() => {
+
+
         enableAnimations(!isActiveDrag)
     }, [isActiveDrag]);
     const cbRef = (node:HTMLDivElement) => {
 
     }
-    const {setNodeRef, attributes, listeners, transform, transition, isDragging} = useSortable({
+    const {setNodeRef, attributes, over, active,listeners, transform, transition, isDragging, isOver} = useSortable({
         id:column.id,
         data:{
             type:"column",
@@ -77,7 +61,8 @@ const Column = ({column, tasks, columns, isTaskSelected, selectionMode, toggleTa
         },
         disabled:editMode
     });
-
+    const isOverColumn = taskIds.some(t => over?.id === t) || (over?.data?.current?.type === "column" && over?.data?.current?.column?.id === column.id)
+    //console.log(over)
     const style = {
         transition,
         transform:CSS.Transform.toString(transform)
@@ -91,15 +76,18 @@ const Column = ({column, tasks, columns, isTaskSelected, selectionMode, toggleTa
         );
     }
     return (
-        <div className={styles.column} ref={setNodeRef} style={style} >
-            <p {...attributes} {...listeners}>{column.title}</p>
-            <div className={styles.taskContainer}  ref={container}>
+        <Flex direction={"column"} flex="0 0 24%"  minH={400} ref={setNodeRef} style={style} >
+                <HStack {...attributes} {...listeners} borderTopRadius={10} justify={"space-between"} bgColor={"#1d1d1d"} p={4}>
+                    <Text>{column.title}</Text>
+                </HStack>
+
+            <Flex direction={"column"} p={"0.5rem"} bgColor={"#A47015"} gap={"0.5rem"} h={"100%"}  ref={container} className={classNames({[styles.placeholder]:isOverColumn})}>
                 <SortableContext items={taskIds} strategy={verticalListSortingStrategy} >
-                    {tasks.map(task => <TaskCard key={task.id} task={task} isTaskSelected={isTaskSelected(task.id)} toggleTaskSelection={toggleTaskSelection(task.id, column.id)} moveTasks={moveTasks}/>)}
+                    {tasks.map(task => <TaskCard key={task.id} task={task} isTaskSelected={isTaskSelected(task.id)} showArrows={showArrows} toggleTaskSelection={toggleTaskSelection(task.id, column.id)} moveTasks={moveTasks}/>)}
 
                 </SortableContext>
-            </div>
-        </div>
+            </Flex>
+        </Flex>
     );
 
 
