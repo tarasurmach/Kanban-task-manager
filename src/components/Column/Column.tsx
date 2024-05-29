@@ -23,14 +23,14 @@ interface Props {
     columnIndex?:number,
     tasks:ITask[],
     isTaskSelected:(taskId:string) => boolean,
-    toggleTaskSelection:(taskId:string, columnId:string) => ()=> void,
+    toggleTaskSelection:(taskId:string, columnId:string, index:number) => ()=> void,
     selectionMode:boolean,
     setSelectionMode:Dispatch<boolean>,
-    setTasks:Dispatch<SetStateAction<ColumnTasksMap>>,
     isActiveDrag:boolean,
     columns:IColumn[],
     moveTasks:MoveTasks,
-    showArrows:boolean
+    showArrows:boolean,
+    selectedLength:number
 
 
 }
@@ -39,7 +39,7 @@ interface Props {
 
 
 
-const Column = ({column, tasks,showArrows, columns, isTaskSelected, selectionMode, toggleTaskSelection, setTasks, isActiveDrag, moveTasks}:Props) => {
+const Column = ({column, tasks,showArrows,  isTaskSelected,  toggleTaskSelection, selectedLength,  isActiveDrag, moveTasks}:Props) => {
     //console.log(tasks)
     const [editMode, setEditMode] = useState<boolean>(false);
     const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
@@ -83,7 +83,7 @@ const Column = ({column, tasks,showArrows, columns, isTaskSelected, selectionMod
 
             <Flex direction={"column"} p={"0.5rem"} bgColor={"#A47015"} gap={"0.5rem"} h={"100%"}  ref={container} className={classNames({[styles.placeholder]:isOverColumn})}>
                 <SortableContext items={taskIds} strategy={verticalListSortingStrategy} >
-                    {tasks.map(task => <TaskCard key={task.id} task={task} isTaskSelected={isTaskSelected(task.id)} showArrows={showArrows} toggleTaskSelection={toggleTaskSelection(task.id, column.id)} moveTasks={moveTasks}/>)}
+                    {tasks.map((task, index) => <TaskCard key={task.id} task={task} selectedLength={selectedLength} isTaskSelected={isTaskSelected(task.id)} showArrows={showArrows} toggleTaskSelection={toggleTaskSelection(task.id, column.id, index)} moveTasks={moveTasks}/>)}
 
                 </SortableContext>
             </Flex>

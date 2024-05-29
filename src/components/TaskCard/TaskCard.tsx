@@ -1,12 +1,12 @@
 import styles from "./TaskCard.module.css"
 import {ITask} from "../../utils/task.ts";
-import {Draggable} from "@hello-pangea/dnd";
+
 import {useSortable} from "@dnd-kit/sortable";
 import {useEffect, useLayoutEffect, useRef, useState} from "react";
 import {CSS} from "@dnd-kit/utilities";
 import classNames from "classnames";
-import {DragHandleIcon, TriangleDownIcon, TriangleUpIcon} from "@chakra-ui/icons";
-import {Direction} from "../Board/Board.tsx";
+import {DragHandleIcon, TriangleDownIcon, TriangleUpIcon, CheckIcon} from "@chakra-ui/icons";
+
 import {MoveTasks} from "../../utils/column.ts";
 
 
@@ -17,10 +17,11 @@ type Props = {
     isTaskSelected:boolean,
     toggleTaskSelection:()=>void,
     moveTasks:MoveTasks;
-    showArrows:boolean
+    showArrows:boolean,
+    selectedLength:number
 
 }
-const TaskCard = ({task, isTaskSelected, toggleTaskSelection, moveTasks, showArrows}:Props) => {
+const TaskCard = ({task, isTaskSelected, toggleTaskSelection, selectedLength, moveTasks, showArrows}:Props) => {
     const [editMode, setEditMode] = useState<boolean>(false);
     const {setNodeRef, attributes, active, listeners, transition, transform, isDragging, rect, node} = useSortable({
         id:task.id,
@@ -31,27 +32,16 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, moveTasks, showArr
         disabled:editMode,
 
     });
-    const elementRef = useRef<HTMLDivElement>();
-    const [clientWidth, setClientWidth] = useState<number>();
+
+
 
     const cbRef = (node:HTMLDivElement) => {
         setNodeRef(node);
-        elementRef.current = node;
+
     }
-    useEffect(() => {
-        handleResize();
-        return () => {
-            console.log("unmounting")
-        }
-    }, []);
-    useLayoutEffect(() => {
-
-        window.addEventListener("resize", handleResize)
-        return () => {
-            window.removeEventListener("resize", handleResize);
-        }
-
-    }, []);
+    if(transform && selectedLength > 0) {
+        //transform.y = transform.y + selectedLength * 30;
+    }
     const style = {
         transition,
         transform:CSS.Transform.toString(transform)
@@ -70,27 +60,22 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, moveTasks, showArr
     }
     //const showArrows =  clientWidth && (clientWidth > 200);
     return (
-        <div  ref={cbRef}  className={classNames(styles.taskCard, {[styles.selected]:isTaskSelected})} style={style} onClick={toggleTaskSelection}>
+        <div  ref={cbRef}  className={classNames(styles.taskCard, )} style={style} onClick={toggleTaskSelection}>
             <div className={styles.row}>
                 <p>{task.title}</p>
-
                 {showArrows && <span className={styles.arrows}>
-
                     <TriangleDownIcon onClick={moveTasks(task.id, "left")}  style={{rotate:"90deg"}}/>
                     <TriangleUpIcon onClick={moveTasks(task.id, "up")}  />
                     <TriangleDownIcon onClick={moveTasks(task.id, "down")}/>
                     <TriangleUpIcon onClick={moveTasks(task.id, "right")} style={{rotate:"90deg"}}/>
-
                 </span>}
+                {isTaskSelected && <CheckIcon/>}
                 <DragHandleIcon {...listeners} {...attributes} className={classNames({[styles.grabbing]:isTaskDragged})}></DragHandleIcon>
             </div>
         </div>
 
     );
-    function handleResize() {
 
-        setClientWidth(elementRef.current?.clientWidth)
-    }
 };
 export const TaskView = ({task, selectedLength}:{task:ITask, selectedLength:number}) => {
 

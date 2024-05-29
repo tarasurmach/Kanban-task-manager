@@ -1,5 +1,5 @@
 import {ITask} from "./task.ts";
-import {Direction} from "../components/Board/Board.tsx";
+
 import {Dispatch, SetStateAction} from "react";
 import {arrayMove, arraySwap} from "@dnd-kit/sortable";
 
@@ -8,7 +8,7 @@ export interface IColumn {
     title:string,
 
 }
-
+export type Direction = "up"|"down"|"left"|"right";
 export const initColumns:IColumn[] = [
     {id:"stodo", title:"Todo"},
     {id:"sprog", title:"Progress"},
