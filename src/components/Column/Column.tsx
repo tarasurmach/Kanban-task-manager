@@ -4,7 +4,18 @@ import {Draggable, Droppable} from "@hello-pangea/dnd";
 import TaskCard from "../TaskCard/TaskCard.tsx";
 import {ITask} from "../../utils/task.ts";
 import classNames from "classnames";
-import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react";
+import {
+    CSSProperties,
+    Dispatch,
+    forwardRef, HTMLAttributes,
+    MouseEventHandler,
+    ReactNode,
+    SetStateAction,
+    useEffect,
+    useMemo,
+    useRef,
+    useState
+} from "react";
 import {
     horizontalListSortingStrategy,
     SortableContext,
@@ -14,24 +25,21 @@ import {
 import {CSS} from "@dnd-kit/utilities";
 import {DragStartEvent} from "@dnd-kit/core";
 import {useAutoAnimate} from "@formkit/auto-animate/react";
-import {Direction} from "../Board/Board.tsx";
+
 import {Flex, HStack, Stack, Text} from "@chakra-ui/react";
+import DragHandle from "../utils/DragHandle.tsx";
+import {CloseIcon} from "@chakra-ui/icons";
 
 
 interface Props {
-    column:IColumn,
-    columnIndex?:number,
-    tasks:ITask[],
-    isTaskSelected:(taskId:string) => boolean,
-    toggleTaskSelection:(taskId:string, columnId:string, index:number) => ()=> void,
-    selectionMode:boolean,
-    setSelectionMode:Dispatch<boolean>,
-    isActiveDrag:boolean,
-    columns:IColumn[],
-    moveTasks:MoveTasks,
-    showArrows:boolean,
-    selectedLength:number
 
+    onClick?:MouseEventHandler,
+    children:ReactNode,
+    placeholder?:string,
+    hover?:boolean,
+    style?:CSSProperties,
+    title?:string,
+    dragHandleProps?:HTMLAttributes<any>
 
 }
 
@@ -39,58 +47,24 @@ interface Props {
 
 
 
-const Column = ({column, tasks,showArrows,  isTaskSelected,  toggleTaskSelection, selectedLength,  isActiveDrag, moveTasks}:Props) => {
-    //console.log(tasks)
-    const [editMode, setEditMode] = useState<boolean>(false);
-    const taskIds = useMemo(() => tasks.map(task => task.id), [tasks]);
-    const [container, enableAnimations] = useAutoAnimate({easing:"ease-in"});
+const Column = forwardRef<HTMLElement, Props>(({ onClick, children, placeholder, hover, style, title, dragHandleProps, ...props}, ref) => {
 
-    useEffect(() => {
+    const Element = placeholder ? "button" : "div";
 
-
-        enableAnimations(!isActiveDrag)
-    }, [isActiveDrag]);
-    const cbRef = (node:HTMLDivElement) => {
-
-    }
-    const {setNodeRef, attributes, over, active,listeners, transform, transition, isDragging, isOver} = useSortable({
-        id:column.id,
-        data:{
-            type:"column",
-            column
-        },
-        disabled:editMode
-    });
-    const isOverColumn = taskIds.some(t => over?.id === t) || (over?.data?.current?.type === "column" && over?.data?.current?.column?.id === column.id)
-    //console.log(over)
-    const style = {
-        transition,
-        transform:CSS.Transform.toString(transform)
-    }
-
-    if(isDragging) {
-        return (
-            <div ref={setNodeRef} className={classNames(styles.column, styles.placeholder)} style={style}>
-
-            </div>
-        );
-    }
     return (
-        <Flex direction={"column"} flex="0 0 24%"  minH={400} ref={setNodeRef} style={style} >
-                <HStack {...attributes} {...listeners} borderTopRadius={10} justify={"space-between"} bgColor={"#1d1d1d"} p={4}>
-                    <Text>{column.title}</Text>
+        <Element ref={ref} {...props} style={style} className={classNames(styles.column, {[styles.placeholder]:placeholder})}>
+            {title ? <HStack  borderTopRadius={10} justify={"space-between"} bgColor={"#1d1d1d"} p={4}>
+                <Text>{title}</Text>
+                <HStack>
+                    {onClick && <CloseIcon onClick={onClick}/>}
+                    <DragHandle {...dragHandleProps} />
                 </HStack>
-
-            <Flex direction={"column"} p={"0.5rem"} bgColor={"#A47015"} gap={"0.5rem"} h={"100%"}  ref={container} className={classNames({[styles.placeholder]:isOverColumn})}>
-                <SortableContext items={taskIds} strategy={verticalListSortingStrategy} >
-                    {tasks.map((task, index) => <TaskCard key={task.id} task={task} selectedLength={selectedLength} isTaskSelected={isTaskSelected(task.id)} showArrows={showArrows} toggleTaskSelection={toggleTaskSelection(task.id, column.id, index)} moveTasks={moveTasks}/>)}
-
-                </SortableContext>
-            </Flex>
-        </Flex>
+            </HStack> : null}
+            {children}
+        </Element>
     );
 
 
-};
+});
 
 export default Column;

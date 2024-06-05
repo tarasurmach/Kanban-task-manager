@@ -1,9 +1,13 @@
 import {forwardRef} from "react";
+import {Button} from "@chakra-ui/react";
+import {DragHandleIcon} from "@chakra-ui/icons";
 
 
 const DragHandle = forwardRef<HTMLButtonElement>((props, ref) => {
     return (
-        <button ref={ref}></button>
+        <Button ref={ref} cursor={"grab"} {...props} style={{padding:""}}>
+            <DragHandleIcon/>
+        </Button>
     )
 });
 

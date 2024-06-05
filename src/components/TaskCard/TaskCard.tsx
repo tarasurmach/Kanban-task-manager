@@ -8,39 +8,33 @@ import classNames from "classnames";
 import {DragHandleIcon, TriangleDownIcon, TriangleUpIcon, CheckIcon} from "@chakra-ui/icons";
 
 import {MoveTasks} from "../../utils/column.ts";
+import DragHandle from "../utils/DragHandle.tsx";
 
 
 
 
 type Props = {
-    task:ITask | {},
+    task:ITask,
     isTaskSelected:boolean,
     toggleTaskSelection:()=>void,
     moveTasks:MoveTasks;
     showArrows:boolean,
-    selectedLength:number
+    disabled?:boolean
 
 }
-const TaskCard = ({task, isTaskSelected, toggleTaskSelection, selectedLength, moveTasks, showArrows}:Props) => {
-    const [editMode, setEditMode] = useState<boolean>(false);
-    const {setNodeRef, attributes, active, listeners, transition, transform, isDragging, rect, node} = useSortable({
+const TaskCard = ({task, isTaskSelected, toggleTaskSelection, moveTasks, showArrows, disabled}:Props) => {
+    const {setNodeRef, attributes, active, listeners, transition, transform} = useSortable({
         id:task.id,
         data:{
             type:"task",
             task
         },
-        disabled:editMode,
+        disabled
 
     });
-
-
-
     const cbRef = (node:HTMLDivElement) => {
         setNodeRef(node);
 
-    }
-    if(transform && selectedLength > 0) {
-        //transform.y = transform.y + selectedLength * 30;
     }
     const style = {
         transition,
@@ -48,7 +42,6 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, selectedLength, mo
     };
     const isTaskDragged = active?.id === task.id;
     if(isTaskDragged) {
-        //console.log("dragging: " + task.id);
 
         return (
             <div ref={setNodeRef}  className={styles.taskCard} style={{...style, opacity:isTaskDragged ? "0.5" : "1"}}>
@@ -58,7 +51,6 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, selectedLength, mo
             </div>
         )
     }
-    //const showArrows =  clientWidth && (clientWidth > 200);
     return (
         <div  ref={cbRef}  className={classNames(styles.taskCard, )} style={style} onClick={toggleTaskSelection}>
             <div className={styles.row}>
@@ -70,7 +62,7 @@ const TaskCard = ({task, isTaskSelected, toggleTaskSelection, selectedLength, mo
                     <TriangleUpIcon onClick={moveTasks(task.id, "right")} style={{rotate:"90deg"}}/>
                 </span>}
                 {isTaskSelected && <CheckIcon/>}
-                <DragHandleIcon {...listeners} {...attributes} className={classNames({[styles.grabbing]:isTaskDragged})}></DragHandleIcon>
+                <DragHandle {...listeners} {...attributes} ></DragHandle>
             </div>
         </div>
 

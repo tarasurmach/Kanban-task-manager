@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, MouseEvent} from "react";
 import {
     ColumnTasksMap,
     groupTasks,
@@ -9,7 +9,7 @@ import {
     SelectedItems
 } from "../../utils/column.ts";
 import styles from "./Board.module.css"
-import Column from "../Column/Column.tsx";
+
 
 import {
     closestCenter,
@@ -24,13 +24,14 @@ import {
     Modifier,
 
 } from "@dnd-kit/core";
-import {arrayMove,  SortableContext} from "@dnd-kit/sortable";
-
+import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable";
 import {createPortal} from "react-dom";
-import {TaskView} from "../TaskCard/TaskCard.tsx";
-
-import {Placeholder} from "../Column/Placeholder.tsx";
+import TaskCard, {TaskView} from "../TaskCard/TaskCard.tsx";
 import {ITask} from "../../utils/task.ts";
+import {getEventCoordinates} from "@dnd-kit/utilities";
+import SortableContainer, {TaskList} from "../Column/SortableContainer.tsx";
+import Column from "../Column/Column.tsx";
+import {Flex} from "@chakra-ui/react";
 
 
 
@@ -145,43 +146,48 @@ const Board = () => {
 
     }, [activeId, tasks]);
     const showArrows = boardWidth ? boardWidth > 900 : true;
-    const createSnapModifier:Modifier =  ({transform, overlayNodeRect}) => ({...transform,
-        y:(selectedItems.tasks.length > 0 && overlayNodeRect) ? transform.y + selectedItems.tasks.findIndex(t => t === activeId) * (overlayNodeRect.height + 8) : transform.y })
+    const isActiveAColumn = activeId ? columns.some(col => col.id === activeId) : false;
+    const snapCenterToCursor:Modifier = ({transform, activatorEvent, draggingNodeRect}) => {
+        if(draggingNodeRect && activatorEvent) {
+            const activatorCoordinates = getEventCoordinates(activatorEvent);
+            if(!activatorCoordinates) return transform;
+            const offsetY = activatorCoordinates.y - draggingNodeRect.top;
+            if(isActiveAColumn) return transform;
+            return {...transform,  y: transform.y + offsetY - draggingNodeRect.height / 2}
+        }
+        return transform;
+    }
+
     return (
         <div className={styles.board} ref={cbRef}>
             <DndContext sensors={sensors} onDragStart={onDragStart}  onDragEnd={onDragEnd} onDragOver={onDragOver} onDragCancel={onDragCancel} collisionDetection={customCollisionDetection}>
                 <SortableContext items={colIds} >
                     {
-                        columns.map(col => <Column
+                        columns.map(col => <SortableContainer
                             key={col.id}
-                            column={col}
+                            id={col.id}
                             tasks={tasks[col.id]}
-                            selectionMode={selectionMode}
-                            setSelectionMode={setSelectionMode}
-                            isTaskSelected={isTaskSelected}
-                            toggleTaskSelection={toggleTaskSelection}
-                            moveTasks={moveTasks(setTasks, columns)}
-                            isActiveDrag={isActiveDrag}
-                            columns={columns}
-                            showArrows={showArrows}
-                            selectedLength={selectedItems.tasks.length}
-                        />)
+                            onClick={deleteColumn(col.id)}
+                            title={col.title}
+                            disabled={isActiveDrag}
+                        >
+                            <TaskList isActiveDrag={isActiveDrag}>
+                                <SortableContext items={tasks[col.id].map(t=> t.id)} strategy={verticalListSortingStrategy} >
+                                    {tasks[col.id].map((task, index) => <TaskCard key={task.id} task={task} isTaskSelected={isTaskSelected(task.id)} showArrows={showArrows} toggleTaskSelection={toggleTaskSelection(task.id, col.id, index)} moveTasks={moveTasks(setTasks, columns)}/>)}
+                                </SortableContext>
+                            </TaskList>
+                        </SortableContainer>)
                     }
-                    <Placeholder addNewColumn={addNewColumn}/>
-                </SortableContext>
-                {createPortal(
-                    <DragOverlay modifiers={[createSnapModifier]}>
 
-                        {columns.some(col => col.id === activeId) ? (
-                            <Column
-                                column={columns.find(col => col.id === activeId) as IColumn}
-                                tasks={tasks[activeId as string]}
-                                selectionMode={selectionMode}
-                                setSelectionMode={setSelectionMode}
-                                isTaskSelected={isTaskSelected}
-                                toggleTaskSelection={toggleTaskSelection}
-                                moveTasks={moveTasks(setTasks, columns)}
-                            />
+                </SortableContext>
+                <SortableContainer onClick={addNewColumn} id={"new"} disabled={isActiveDrag} >
+                    <p>+Add new column</p>
+                </SortableContainer>
+                {createPortal(
+                    <DragOverlay modifiers={[snapCenterToCursor]}>
+
+                        {isActiveAColumn ? (
+                            renderColumnOverlay(columns.find(col => col.id === activeId) as IColumn)
                         ) : (<TaskView
                             task={findItem(activeId as string) as ITask }
                             selectedLength={selectedItems.tasks.length}
@@ -192,8 +198,16 @@ const Board = () => {
             </DndContext>
         </div>
     );
+    function renderColumnOverlay({id, title}:IColumn) {
+        return <Column style={{height:"100%"}} title={title}>
+            <Flex direction={"column"} p={"0.5rem"} bgColor={"#A47015"} gap={"0.5rem"} h={"100%"}>
+                {tasks[id].map(t => <TaskView task={t} selectedLength={0}/>)}
+            </Flex>
+        </Column>
+    }
     function onDragStart(e:DragStartEvent) {
         setActiveId(e.active.id);
+        setClonedItems(tasks);
         if(!selectedItems.tasks.includes(e.active.id as string)) {
             console.log("true")
             setSelectedItems(initSelected);
@@ -208,7 +222,7 @@ const Board = () => {
             setTasks(prev => ({...prev, [activeColumn]:prev[activeColumn].filter(t => t.id === e.active.id || !selectedItems.tasks.includes(t.id))}))
 
         }
-        setClonedItems(tasks);
+
     }
     function onDragCancel() {
         if(clonedItems) {
@@ -260,45 +274,37 @@ const Board = () => {
         }
         const activeIdx = tasks[activeColumn].findIndex(t => t.id === active.id);
         const overIdx = tasks[overColumn].findIndex(t => t.id === over.id);
-        if(activeIdx === overIdx) {
-            console.log("same index");
-            if(selectedItems.tasks.length === 0) return;
-            setTasks(prev => {
-                prev = Object.assign({}, prev);
-                prev[overColumn] = prev[overColumn].slice();
-                const selectedTasks = (clonedItems as ColumnTasksMap)[selectedItems.columnId].filter(t => selectedItems.tasks.includes(t.id));
+        const {tasks:selectedIds, columnId:selectedColumnId} = selectedItems;
+        console.log(clonedItems, selectedColumnId)
+        const selectedTasks = selectedColumnId && clonedItems ? clonedItems[selectedColumnId].filter(t => selectedIds.includes(t.id)) : [];
+        setTasks(prev => {
+            const tasksMap = Object.assign({}, prev) ;
+            if(activeIdx === overIdx) {
+                if(selectedTasks?.length === 0) return prev;
                 selectedTasks.forEach(t => {
                     t.columnId = overColumn
                 });
-                console.log(overIdx)
-                prev[overColumn].splice(overIdx, 1, ...selectedTasks);
-                return prev;
-            });
-            setSelectedItems(prev => ({...prev, columnId:overColumn}));
-            return;
-        }
-        console.log("setting tasks onDragEnd from: " + activeIdx + " to: " + overIdx)
-        setTasks(prev => {
-            prev = Object.assign({} , prev);
-            if(selectedItems.tasks.length === 0) {
-                prev[overColumn] = arrayMove(prev[overColumn], activeIdx, overIdx)
-                return prev;
+                tasksMap[overColumn] = tasksMap[overColumn].slice();
+                tasksMap[overColumn].splice(overIdx, 1, ...selectedTasks);
+                return tasksMap;
             }
-            const selectedTasks = (clonedItems as ColumnTasksMap)[selectedItems.columnId].filter(t => selectedItems.tasks.includes(t.id));
+            if(selectedTasks?.length === 0) {
+                tasksMap[overColumn] = arrayMove(tasksMap[overColumn], activeIdx, overIdx);
+                return tasksMap;
+            }
             selectedTasks.forEach(t => {
                 t.columnId = overColumn
-            })
-            prev[overColumn].splice(activeIdx, 1);
-
-            console.log(overIdx)
-            prev[overColumn].splice(overIdx, 0, ...selectedTasks);
-            return prev;
+            });
+            tasksMap[overColumn] = tasksMap[overColumn].slice()
+            tasksMap[overColumn].splice(activeIdx, 1);
+            tasksMap[overColumn].splice(overIdx, 0, ...selectedTasks)
+            return tasksMap;
 
         });
-
         setSelectedItems(prev => ({...prev, columnId:overColumn}));
         console.log(selectedItems)
         setActiveId(null);
+
 
     }
 
@@ -309,7 +315,7 @@ const Board = () => {
         const {active, over } = e;
         const overId = over?.id as string;
 
-        if(!overId ||  overId === "new" ) return;
+        if(!overId || overId === "new" ) return;
         console.log(overId)
         if(active.id in tasks) return;
         const activeColumn = findColumn(active.id as string)
@@ -320,8 +326,6 @@ const Board = () => {
 
         if(activeColumn === overColumn) { //since rearranging within the same sortable context is handled in onDragEnd callback
             console.log("same column");
-
-
             return;
         }
         console.log("active column: " + activeColumn + " over column: " + overColumn);
@@ -359,6 +363,22 @@ const Board = () => {
         const newColId = `Column ${columns.length + 1}`;
         setColumns(prev => ([...prev, {id:newColId, title:newColId.charAt(0).toUpperCase() + newColId.slice(1)}]));
         setTasks(prev => ({...prev, [newColId]:[]}))
+    }
+    function deleteColumn(colId:string) {
+        return () => {
+            setColumns(prev => prev.filter(col => col.id !== colId));
+            setTasks(prev => {
+                const newMap:Record<string, ITask[]> = {};
+                for (const col of columns) {
+                    if(col.id === colId) continue;
+                    newMap[col.id] = prev[col.id]
+                }
+                return newMap;
+            });
+            if(selectedItems.columnId === colId) {
+                setSelectedItems(initSelected)
+            }
+        }
     }
     function findColumn(id:string) {
         if(id in tasks) {

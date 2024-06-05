@@ -1,6 +1,6 @@
 .column {
     display: flex;
-
+    flex-direction: column;
     border-radius: 12px;
     flex: 0 0 24%;
     min-height: 400px;
@@ -14,12 +14,12 @@
 .over {
     background-color: #A47015;
 }
-
 .placeholder {
-
-    background-color: #1d1d1d;
-    border-bottom-left-radius: 12px;
-    border-bottom-right-radius: 12px;
+    justify-content: center;
+    align-items: center;
+}
+.hover {
+    opacity: 0.5;
 }
 .taskContainer {
     display: flex;
